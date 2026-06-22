@@ -1,25 +1,91 @@
 @import "tailwindcss";
 @config "../tailwind.config.ts";
 
-/* src/app/globals.css */
+/* ── Veri0G Design System ── */
+
 :root {
+  --navy: #1C1941;
+  --cream: #FDF8F5;
+  --purple: #845EEB;
+  --mint: #8AF2CF;
+  --rose: #EF4A6B;
+  --gold: #FFD166;
+  --lavender: #E5D7FA;
+  --violet-mid: #A292E4;
+
+  /* Legacy tokens for backward compat with existing components */
   --substrate: 12 17 16;
-  --substrate-raised: 20 28 26;
-  --copper: 201 122 61;
-  --copper-dim: 110 74 46;
-  --signal: 110 231 176;
-  --alert: 232 130 90;
-  --ink: 237 235 227;
-  --ink-dim: 140 148 144;
+  --substrate-raised: 255 255 255;
+  --copper: 132 94 235;
+  --copper-dim: 28 25 65;
+  --signal: 138 242 207;
+  --alert: 239 74 107;
+  --ink: 28 25 65;
+  --ink-dim: 107 114 128;
 }
 
 body {
-  background: rgb(var(--substrate));
-  color: rgb(var(--ink));
-  font-family: var(--font-body), system-ui, sans-serif;
+  background: var(--cream);
+  color: var(--navy);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+::selection {
+  background: var(--rose);
+  color: white;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--cream);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--navy);
+  border-radius: 4px;
+}
+
+/* ── Animations ── */
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-10px); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(132, 94, 235, 0.3); }
+  50% { box-shadow: 0 0 40px rgba(132, 94, 235, 0.6); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes rotate-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 @keyframes checkpointIn {
   from { opacity: 0; transform: translateX(-4px); }
   to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes scan-line {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+
+@keyframes loading-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+@keyframes loading-bar {
+  0% { width: 0%; }
+  50% { width: 70%; }
+  100% { width: 100%; }
 }

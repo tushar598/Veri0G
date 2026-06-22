@@ -149,6 +149,10 @@ export async function verifyProvider(
       (step: { message: string }) => steps.push(step.message)
     );
 
+    if (!result) {
+      return fail("Verification returned no result", true, service);
+    }
+
     const signerMatch = !!result.signerVerification?.allMatch;
     const composeHashPassed = !!result.composeVerification?.passed;
 

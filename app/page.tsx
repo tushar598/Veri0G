@@ -1,43 +1,43 @@
-// src/app/page.tsx
 "use client";
 
 import { useState } from "react";
-import { ProviderSearch } from "@/app/components/ProviderSearch";
-import { VerificationCard } from "@/app/components/VerificationCard";
-import type { VerificationResult } from "@/app/types";
+import SmoothScroll from "@/app/components/SmoothScroll";
+import { Navbar } from "@/app/components/Navbar";
+import { Hero } from "@/app/components/Hero";
+import { Stats } from "@/app/components/Stats";
+import { HowItWorks } from "@/app/components/HowItWorks";
+import { TrustMetrics } from "@/app/components/TrustMetrics";
+import { Features } from "@/app/components/Features";
+import { TechStack } from "@/app/components/TechStack";
+import { Footer } from "@/app/components/Footer";
+import { LoadingState } from "@/app/components/LoadingState";
 
 export default function HomePage() {
-  const [result, setResult] = useState<VerificationResult | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  async function handleSelect(providerAddress: string) {
-    setLoading(true);
-    setResult(null);
-    try {
-      const res = await fetch("/api/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ providerAddress }),
-      });
-      setResult(await res.json());
-    } finally {
-      setLoading(false);
-    }
-  }
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [showLoader, setShowLoader] = useState(true);
 
   return (
-    <main className="mx-auto max-w-2xl px-4 py-16">
-      <h1 className="font-display text-3xl text-ink">0G Proof Explorer</h1>
-      <p className="mt-2 text-ink-dim">
-        Check whether a 0G Compute provider is running inside a genuine, attested TEE.
-      </p>
-      <div className="mt-8">
-        <ProviderSearch onSelect={handleSelect} />
-      </div>
-      <div className="mt-8">
-        {loading && <p className="font-mono text-sm text-ink-dim">Running attestation checks…</p>}
-        {result && <VerificationCard result={result} />}
-      </div>
-    </main>
+    <>
+      {showLoader && (
+        <LoadingState 
+          onComplete={() => setIsLoaded(true)} 
+          onUnmount={() => setShowLoader(false)} 
+        />
+      )}
+      <SmoothScroll>
+        <div className="min-h-screen selection:bg-[#845EEB] selection:text-white flex flex-col relative w-full border-x-8 border-[#1C1941] max-w-[1920px] mx-auto shadow-2xl overflow-x-hidden">
+          <Navbar />
+          <main className="flex-1 w-full pt-16">
+            <Hero isLoaded={isLoaded} />
+            <Stats />
+            <HowItWorks />
+            <TrustMetrics />
+            <Features />
+            <TechStack />
+          </main>
+          <Footer />
+        </div>
+      </SmoothScroll>
+    </>
   );
 }
