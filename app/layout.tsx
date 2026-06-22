@@ -23,6 +23,9 @@ export const metadata: Metadata = {
   title: "Veri0G | 0G Compute Proof Explorer",
   description:
     "Verify your AI inference results instantly. Transpose complex 0G TEE attestations and ZK proofs into simple, human-readable trust metrics.",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export default function RootLayout({

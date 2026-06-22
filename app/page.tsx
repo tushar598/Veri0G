@@ -12,16 +12,28 @@ import { TechStack } from "@/app/components/TechStack";
 import { Footer } from "@/app/components/Footer";
 import { LoadingState } from "@/app/components/LoadingState";
 
+// Module-level flag: resets on hard refresh, persists across client-side navigation
+let hasLoadedOnce = false;
+
 export default function HomePage() {
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [showLoader, setShowLoader] = useState(true);
+  const [isLoaded, setIsLoaded] = useState(hasLoadedOnce);
+  const [showLoader, setShowLoader] = useState(!hasLoadedOnce);
+
+  const handleLoadingComplete = () => {
+    setIsLoaded(true);
+  };
+
+  const handleLoadingUnmount = () => {
+    setShowLoader(false);
+    hasLoadedOnce = true;
+  };
 
   return (
     <>
       {showLoader && (
         <LoadingState 
-          onComplete={() => setIsLoaded(true)} 
-          onUnmount={() => setShowLoader(false)} 
+          onComplete={handleLoadingComplete} 
+          onUnmount={handleLoadingUnmount} 
         />
       )}
       <SmoothScroll>

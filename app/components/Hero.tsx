@@ -43,10 +43,7 @@ export function Hero({ isLoaded = true }: { isLoaded?: boolean }) {
         }, "-=0.2")
         .from(".hero-graphic", {
           x: 60, opacity: 0, duration: 0.9, ease: "power3.out",
-        }, "-=0.7")
-        .from(".hero-stat", {
-          y: 20, opacity: 0, duration: 0.4, stagger: 0.08,
-        }, "-=0.3");
+        }, "-=0.7");
 
       // ambient float on decorative elements
       gsap.to(shieldRef.current, {
