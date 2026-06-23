@@ -13,6 +13,7 @@ import { Footer } from "@/app/components/Footer";
 import { LoadingState } from "@/app/components/LoadingState";
 
 // Module-level flag: resets on hard refresh, persists across client-side navigation
+
 let hasLoadedOnce = false;
 
 export default function HomePage() {
