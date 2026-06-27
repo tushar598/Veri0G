@@ -169,3 +169,152 @@ export async function verifyProvider(
     fs.rm(outDir, { recursive: true, force: true }).catch(() => {});
   }
 }
+
+
+// ─────────────────────────────────────────────
+// TIER 1 — Verified Inference
+// ─────────────────────────────────────────────
+
+export interface VerificationReceipt {
+  chatID: string;
+  isVerified: boolean;
+  providerAddress: string;
+  verifiedAt: number;
+}
+
+export interface InferenceResult {
+  content: string;
+  model: string;
+  providerAddress: string;
+  receipt: VerificationReceipt | null;
+  error: string | null;
+}
+
+// One-time per-provider setup: acknowledge the provider's TEE signer.
+// Safe to call multiple times — idempotent on-chain.
+// Must be called before the first inference with a provider.
+const acknowledgedProviders = new Set<string>();
+
+async function ensureProviderAcknowledged(
+  broker: Broker,
+  providerAddress: string
+): Promise<void> {
+  const key = providerAddress.toLowerCase();
+  if (acknowledgedProviders.has(key)) return;
+  await broker.inference.acknowledgeProviderSigner(providerAddress);
+  acknowledgedProviders.add(key);
+}
+
+export async function runVerifiedInference(
+  providerAddress: string,
+  userMessage: string
+): Promise<InferenceResult> {
+  const fail = (error: string): InferenceResult => ({
+    content: "", model: "", providerAddress, receipt: null, error,
+  });
+
+  if (!ethers.isAddress(providerAddress)) {
+    return fail("Invalid provider address format");
+  }
+  if (!userMessage.trim()) {
+    return fail("Message cannot be empty");
+  }
+
+  let broker: Broker;
+  try {
+    broker = await getZeroGBroker();
+  } catch (err) {
+    return fail(err instanceof Error ? `Network error: ${err.message}` : "Could not reach 0G network");
+  }
+
+  try {
+    // 1. Confirm this is a real, active provider
+    const service = await getProviderService(providerAddress);
+    if (!service) {
+      return fail("No active service found for this provider address");
+    }
+    if (service.serviceType !== "chatbot") {
+      return fail(`This provider runs '${service.serviceType}', not a chatbot — chat not supported`);
+    }
+
+    // 2. One-time provider acknowledgment
+    await ensureProviderAcknowledged(broker, providerAddress);
+
+    // 3. Get service endpoint + model
+    const { endpoint, model } = await broker.inference.getServiceMetadata(providerAddress);
+
+    // 4. Generate single-use request headers — NEW headers every request, never reuse
+    const headers = await broker.inference.getRequestHeaders(providerAddress);
+
+    // 5. Make the actual inference call
+    const inferenceRes = await fetch(`${endpoint}/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...headers },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: "user", content: userMessage }],
+      }),
+    });
+
+    if (!inferenceRes.ok) {
+      const errBody = await inferenceRes.text().catch(() => "");
+      // Common causes: insufficient ledger funds, provider offline
+      return fail(`Provider returned ${inferenceRes.status}: ${errBody || inferenceRes.statusText}`);
+    }
+
+    const data = await inferenceRes.json();
+    const content: string = data.choices?.[0]?.message?.content ?? "";
+
+    if (!content) {
+      return fail("Provider returned an empty response");
+    }
+
+    // 6. Extract chatID — header first, body fallback
+    const chatID: string | null =
+      inferenceRes.headers.get("ZG-Res-Key") ||
+      inferenceRes.headers.get("zg-res-key") ||
+      data.id ||
+      null;
+
+    // 7. Verify the response via TEE signature
+    // processResponse(providerAddress, content, chatID)
+    // Also handles fee settlement — must be called even on failure
+    let receipt: VerificationReceipt | null = null;
+    if (chatID) {
+      try {
+        const isVerified = await broker.inference.processResponse(
+          providerAddress,
+          content,
+          chatID
+        );
+        receipt = {
+          chatID,
+          isVerified: !!isVerified,
+          providerAddress,
+          verifiedAt: Date.now(),
+        };
+      } catch (verifyErr) {
+        // Verification failed but we still have the response — surface both
+        console.log("verify err", verifyErr);
+        receipt = {
+          chatID,
+          isVerified: false,
+          providerAddress,
+          verifiedAt: Date.now(),
+        };
+      }
+    }
+    // chatID being null means this provider didn't return one —
+    // we still return the content, just without a receipt
+
+    return { content, model, providerAddress, receipt, error: null };
+
+  } catch (err) {
+    // Most common real-world cause: "Your account doesn't have enough funds"
+    const msg = err instanceof Error ? err.message : "Inference failed";
+    if (msg.toLowerCase().includes("fund") || msg.toLowerCase().includes("balance")) {
+      return fail(`Insufficient ledger funds. Fund your wallet at faucet.0g.ai and ensure your account has a ledger with ≥3 OG.`);
+    }
+    return fail(msg);
+  }
+}

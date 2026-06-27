@@ -116,12 +116,19 @@ export function VerificationCard({
             {service.model}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <span className="rounded-full border-2 border-[#1C1941] px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-[#845EEB] bg-[#845EEB]/5">
-              {service.serviceType}
-            </span>
-            <span className="rounded-full border-2 border-[#1C1941] px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-widest text-[#845EEB] bg-[#845EEB]/5">
-              {service.verifiability || "unverified"}
-            </span>
+           
+<span
+  className="rounded-full border-2 border-[#1C1941]/20 px-2 py-0.5 font-mono text-[11px] uppercase tracking-wide text-[#845EEB] bg-[#845EEB]/5"
+  title={
+    service.verifiability === "TeeML"
+      ? "Model runs directly inside the TEE — per-response signing possible"
+      : service.verifiability === "TeeTLS"
+      ? "Broker runs in TEE, proxies to a centralized model — broker routing is verified"
+      : "Verification method unknown"
+  }
+>
+  {service.verifiability || "unverified"}
+</span>
           </div>
         </div>
         <div
