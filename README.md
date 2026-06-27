@@ -43,6 +43,7 @@ Anyone can paste a 0G Compute Provider Address and receive an instant, transpare
 | Feature | Description |
 |---|---|
 | **One-click TEE verification** | Paste an address, run a real check against the live 0G testnet — no CLI required |
+| **Verified Inference Chat** | Direct interactive chat tab for chatbot providers with cryptographic per-response verification receipts |
 | **Live provider directory** | Searchable, browseable list of every active compute provider |
 | **Honest verification receipts** | Honest `PASS` / `FAIL` — never "verified" when checks are incomplete |
 | **Full transparency log** | Every step the verifier ran, exposed on demand |
@@ -55,46 +56,48 @@ Anyone can paste a 0G Compute Provider Address and receive an instant, transpare
 ## 🏗️ Architecture
 
 ```
-┌────────────────────────────────────────────────────┐
-│                   Next.js App Router               │
-│                                                    │
-│  ┌──────────────────┐    ┌──────────────────────┐  │
-│  │  Landing Page    │    │  /dashboard          │  │
-│  │  (Client)        │    │  (Client)            │  │
-│  │  ├ LoadingState  │    │  ├ ProviderSearch    │  │
-│  │  ├ HeroBackground│    │  ├ VerificationCard  │  │
-│  │  └ Hero (GSAP)   │    │  └ DashboardNavbar   │  │
-│  └──────────────────┘    └──────────────────────┘  │
-│                                   │                │
-│              ┌────────────────────┤                │
-│              ▼                    ▼                │
-│  ┌────────────────────┐  ┌──────────────────────┐  │
-│  │  POST /api/verify  │  │  GET /api/providers  │  │
-│  │  (Server-only)     │  │  (Server-only)       │  │
-│  └──────────┬─────────┘  └──────────┬───────────┘  │
-│             │                       │              │
-└─────────────┼───────────────────────┼──────────────┘
-              │                       │
-              ▼                       ▼
-     ┌────────────────────────────────────────┐
-     │           app/lib/zeroG.ts             │
-     │  (Server-only — hard build boundary)   │
-     │                                        │
-     │  ● getZeroGBroker() — singleton        │
-     │  ● listProviders()  — 60s cache        │
-     │  ● verifyProvider() — dual audit       │
-     │    ├ TEE signer match                  │
-     │    └ Docker-compose hash check         │
-     └──────────────────┬─────────────────────┘
-                        │
-                        ▼
-          ┌─────────────────────────┐
-          │  @0gfoundation/         │
-          │  0g-compute-ts-sdk      │
-          │                         │
-          │  Galileo Testnet        │
-          │  RPC endpoint           │
-          └─────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                     Next.js App Router                      │
+│                                                             │
+│  ┌──────────────────┐      ┌─────────────────────────────┐  │
+│  │  Landing Page    │      │  /dashboard (Client)        │  │
+│  │  (Client)        │      │  ├ ProviderSearch           │  │
+│  │  ├ LoadingState  │      │  ├ VerificationCard         │  │
+│  │  ├ HeroBackground│      │  ├ ChatInterface (Session)  │  │
+│  │  └ Hero (GSAP)   │      │  └ DashboardNavbar          │  │
+│  └──────────────────┘      └──────────────┬──────────────┘  │
+│                                           │                 │
+│              ┌────────────────────────────┼────────────────┐│
+│              ▼                            ▼                ▼│
+│  ┌────────────────────┐      ┌──────────────────────┐┌───────────┐│
+│  │  POST /api/verify  │      │  GET /api/providers  ││/api/chat  ││
+│  │  (Server-only)     │      │  (Server-only)       ││(Server)   ││
+│  └──────────┬─────────┘      └──────────┬───────────┘└─────┬─────┘│
+│             │                           │                  │      │
+└─────────────┼───────────────────────────┼──────────────────┼──────┘
+              │                           │                  │
+              ▼                           ▼                  ▼
+     ┌─────────────────────────────────────────────────────────────┐
+     │                       app/lib/zeroG.ts                      │
+     │             (Server-only — hard build boundary)             │
+     │                                                             │
+     │  ● getZeroGBroker()      — singleton                        │
+     │  ● listProviders()       — 60s cache                        │
+     │  ● verifyProvider()      — dual audit                       │
+     │  ● runVerifiedInference()— chatbot execution                │
+     │    ├ ensureProviderAcknowledged()                           │
+     │    ├ getServiceMetadata() & getRequestHeaders()             │
+     │    └ processResponse()   — fee settlement & TEE sig audit   │
+     └──────────────────────────────┬──────────────────────────────┘
+                                    │
+                                    ▼
+                      ┌─────────────────────────┐
+                      │  @0gfoundation/         │
+                      │  0g-compute-ts-sdk      │
+                      │                         │
+                      │  Galileo Testnet        │
+                      │  RPC endpoint           │
+                      └─────────────────────────┘
 ```
 
 ### Key Design Decisions
@@ -103,6 +106,8 @@ Anyone can paste a 0G Compute Provider Address and receive an instant, transpare
 - **Broker singleton** — The 0G SDK broker is initialized once and cached across warm lambda invocations, avoiding repeated wallet connections per request.
 - **60-second provider cache** — `listProviders()` caches the full service list in-memory to avoid hammering the network on every keystroke in the search input.
 - **Dual verification audit** — `verifyProvider()` runs both `signerVerification` and `composeVerification` atomically, populating a typed `VerificationResult` structure serializable to JSON.
+- **Session-Persisted Verified Chat** — When chatting with verified providers, conversation logs are persisted in `sessionStorage` (isolated by provider address). This keeps conversation context intact when clicking between tabs, but automatically discards it once the browser window is closed.
+- **Ledger Settlement & Faucet Requirements** — Real-time verified chatbot inference relies on the `runVerifiedInference` loop which makes a request, fetches the response, and settles the query cost against a ledger account balance on the testnet. Requires funding the server-side wallet at `faucet.0g.ai` (needs ≥3 OG).
 
 ---
 
@@ -247,7 +252,7 @@ Runs a full TEE attestation check on a 0G Compute provider.
   "found": true,
   "service": {
     "provider": "0x...",
-    "serviceType": "inference",
+    "serviceType": "chatbot",
     "url": "https://...",
     "model": "llama-3-8b",
     "inputPrice": "...",
@@ -263,6 +268,34 @@ Runs a full TEE attestation check on a 0G Compute provider.
 }
 ```
 
+### `POST /api/chat`
+
+Executes a verified inference request to a specific chatbot provider and verifies its response signature.
+
+**Request:**
+```json
+{
+  "providerAddress": "0x...",
+  "message": "Hello, who are you?"
+}
+```
+
+**Response:**
+```json
+{
+  "content": "I am an AI assistant...",
+  "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
+  "providerAddress": "0x...",
+  "receipt": {
+    "chatID": "0x...",
+    "isVerified": true,
+    "providerAddress": "0x...",
+    "verifiedAt": 1719488344000
+  },
+  "error": null
+}
+```
+
 ### `GET /api/providers`
 
 Returns all active 0G Compute providers (60-second server-side cache).
@@ -272,10 +305,9 @@ Returns all active 0G Compute providers (60-second server-side cache).
 [
   {
     "provider": "0x...",
-    "serviceType": "inference",
+    "serviceType": "chatbot",
     "model": "...",
-    "verifiability": "TeeML",
-    ...
+    "verifiability": "TeeML"
   }
 ]
 ```
