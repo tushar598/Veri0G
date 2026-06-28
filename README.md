@@ -43,7 +43,8 @@ Anyone can paste a 0G Compute Provider Address and receive an instant, transpare
 | Feature | Description |
 |---|---|
 | **One-click TEE verification** | Paste an address, run a real check against the live 0G testnet — no CLI required |
-| **Verified Inference Chat** | Direct interactive chat tab for chatbot providers with cryptographic per-response verification receipts |
+| **Verified Inference Chat** | Interactive chatbot with response-level TEE signature auditing, custom markdown styling, code copy badges, and honest skips (centralized model bypasses) |
+| **Rich Text / Code Render** | Premium Memphis-style code viewer featuring horizontal scrolling, language badge, copy buttons, and strict parser for headers, lists, bold/italic syntax |
 | **Live provider directory** | Searchable, browseable list of every active compute provider |
 | **Honest verification receipts** | Honest `PASS` / `FAIL` — never "verified" when checks are incomplete |
 | **Full transparency log** | Every step the verifier ran, exposed on demand |
@@ -107,6 +108,9 @@ Anyone can paste a 0G Compute Provider Address and receive an instant, transpare
 - **60-second provider cache** — `listProviders()` caches the full service list in-memory to avoid hammering the network on every keystroke in the search input.
 - **Dual verification audit** — `verifyProvider()` runs both `signerVerification` and `composeVerification` atomically, populating a typed `VerificationResult` structure serializable to JSON.
 - **Session-Persisted Verified Chat** — When chatting with verified providers, conversation logs are persisted in `sessionStorage` (isolated by provider address). This keeps conversation context intact when clicking between tabs, but automatically discards it once the browser window is closed.
+- **Dynamic Render-time Purity** — Replaced direct, impure runtime queries (`Date.now()`) during the render loop with event-driven time captures stored directly inside the messages state history, maintaining 100% component purity under React 19 rules.
+- **Provider Architecture Parsing & Honest Skips** — Parses extended on-chain contract metadata to distinguish between fully TEE-enclosed model executions (`TeeML`) and hybrid deployments where the TEE only wraps the routing layer (e.g. centralized providers). In hybrid cases, verification is honestly skipped with clear visual indicators, rather than failing unexpectedly.
+- **Neo-Brutalist Code & Markdown Renderer** — Integrates a self-contained, React 19-compatible markdown tokenizer rendering paragraphs, bold/italic markup, headers, and list types directly to styled components. Code snippets are compiled into a custom dark code window with horizontal scrollboxes and one-click copy helper buttons.
 - **Ledger Settlement & Faucet Requirements** — Real-time verified chatbot inference relies on the `runVerifiedInference` loop which makes a request, fetches the response, and settles the query cost against a ledger account balance on the testnet. Requires funding the server-side wallet at `faucet.0g.ai` (needs ≥3 OG).
 
 ---
@@ -134,7 +138,8 @@ Anyone can paste a 0G Compute Provider Address and receive an instant, transpare
 ├── app/
 │   ├── api/
 │   │   ├── verify/route.ts        # POST – runs full provider attestation
-│   │   └── providers/route.ts     # GET  – returns all active providers
+│   │   ├── providers/route.ts     # GET  – returns all active providers
+│   │   └── chat/route.ts          # POST - chatbot inference execution and proof settlement
 │   ├── components/
 │   │   ├── LoadingState.tsx        # Boot screen (0–100% + curtain split)
 │   │   ├── HeroBackground.tsx      # Memphis Design SVG animation canvas
@@ -146,6 +151,7 @@ Anyone can paste a 0G Compute Provider Address and receive an instant, transpare
 │   │   ├── TechStack.tsx           # Technology showcase
 │   │   ├── TrustMetrics.tsx        # Trust & transparency metrics
 │   │   ├── VerificationCard.tsx    # Full attestation result card
+│   │   ├── ChatInterface.tsx       # Live chatbot + Markdown/Code rendering & TEE receipt viewer
 │   │   ├── ProviderSearch.tsx      # Address search + live dropdown
 │   │   ├── DashboardNavbar.tsx     # Dashboard navigation bar
 │   │   ├── Footer.tsx              # Landing page footer
@@ -290,7 +296,8 @@ Executes a verified inference request to a specific chatbot provider and verifie
     "chatID": "0x...",
     "isVerified": true,
     "providerAddress": "0x...",
-    "verifiedAt": 1719488344000
+    "verifiedAt": 1719488344000,
+    "skipReason": null
   },
   "error": null
 }
