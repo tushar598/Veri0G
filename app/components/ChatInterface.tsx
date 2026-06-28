@@ -9,22 +9,77 @@ function ReceiptBadge({ receipt }: { receipt: VerificationReceipt }) {
   const [open, setOpen] = useState(false);
 
   const verified = receipt.isVerified;
+  const skipReason = receipt.skipReason ?? null;
   const time = new Date(receipt.verifiedAt).toLocaleTimeString();
+
+  // Badge label and color change based on what actually happened
+  const badgeConfig = verified
+    ? {
+        label: "TEE verified response",
+        dot: "bg-[#1C1941]",
+        wrapper:
+          "border-[#1C1941] bg-[#8AF2CF] text-[#1C1941] shadow-[2px_2px_0_#1C1941] hover:shadow-[3px_3px_0_#1C1941] hover:-translate-y-px",
+      }
+    : skipReason === "centralized_provider"
+    ? {
+        label: "Broker TEE · Model centralized",
+        dot: "bg-[#EF4A6B]",
+        wrapper:
+          "border-[#1C1941]/30 bg-[#FFD166]/30 text-[#1C1941]/70 hover:bg-[#FFD166]/50",
+      }
+    : skipReason === "signature_fetch_failed"
+    ? {
+        label: "Signature fetch failed",
+        dot: "bg-[#EF4A6B]",
+        wrapper:
+          "border-[#EF4A6B]/40 bg-[#EF4A6B]/10 text-[#EF4A6B] hover:bg-[#EF4A6B]/20",
+      }
+    : {
+        label: "TEE sig unavailable",
+        dot: "bg-[#EF4A6B]",
+        wrapper:
+          "border-[#1C1941]/30 bg-[#FFD166]/20 text-[#1C1941]/60 hover:bg-[#FFD166]/30",
+      };
+
+  // Expanded explanation text per skip reason
+  const explanation =
+    skipReason === "centralized_provider" ? (
+      <>
+        Despite the registry showing{" "}
+        <code className="bg-[#845EEB]/10 text-[#845EEB] px-1 rounded font-bold">TeeML</code>,
+        this provider routes inference through a centralized backend (
+        <span className="font-bold text-[#1C1941]/60">Alibaba Cloud / DashScope</span>
+        ). The TEE enclave covers the broker routing layer only — per-response model
+        signatures are architecturally unavailable. Provider-level attestation still
+        passed.
+      </>
+    ) : skipReason === "signature_fetch_failed" ? (
+      <>
+        A chatID was returned but the TEE signature could not be fetched from the
+        provider. The provider may be temporarily misconfigured or under load. Try
+        again — if it persists, the provider may need re-registration.
+      </>
+    ) : verified ? null : (
+      <>
+        This provider passed automated attestation checks but did not return a
+        per-response TEE signature (
+        <code className="bg-[#1C1941]/5 text-[#845EEB] px-1 rounded font-bold">ZG-Res-Key</code>
+        ) for this request. Provider-level verification still applies.
+      </>
+    );
 
   return (
     <div className="mt-2">
       <button
         onClick={() => setOpen((s) => !s)}
-        className={`inline-flex items-center gap-2 rounded-full border-2 px-3 py-1 font-mono text-[11px] font-bold uppercase tracking-wide transition-all ${
-          verified
-            ? "border-[#1C1941] bg-[#8AF2CF] text-[#1C1941] shadow-[2px_2px_0_#1C1941] hover:shadow-[3px_3px_0_#1C1941] hover:-translate-y-px"
-            : "border-[#1C1941]/40 bg-[#FFD166]/20 text-[#1C1941]/70 hover:bg-[#FFD166]/30"
-        }`}
+        className={`inline-flex items-center gap-2 rounded-full border-2 px-3 py-1 font-mono text-[11px] font-bold uppercase tracking-wide transition-all ${badgeConfig.wrapper}`}
       >
-        <span className={`h-2 w-2 rounded-full ${verified ? "bg-[#1C1941]" : "bg-[#EF4A6B]"}`} />
-        {verified ? "TEE verified response" : "Response received · TEE sig unavailable"}
+        <span className={`h-2 w-2 rounded-full shrink-0 ${badgeConfig.dot}`} />
+        {badgeConfig.label}
         <span
-          className={`w-5 h-5 rounded-md border-2 border-[#1C1941]/30 flex items-center justify-center text-[10px] font-black transition-transform ${open ? "rotate-45" : ""}`}
+          className={`w-5 h-5 rounded-md border-2 border-[#1C1941]/30 flex items-center justify-center text-[10px] font-black transition-transform shrink-0 ${
+            open ? "rotate-45" : ""
+          }`}
           aria-hidden
         >
           +
@@ -32,36 +87,280 @@ function ReceiptBadge({ receipt }: { receipt: VerificationReceipt }) {
       </button>
 
       {open && (
-        <div className="mt-2 rounded-xl border-2 border-[#1C1941]/20 bg-[#FDF8F5] p-4 font-mono text-[11px] space-y-2">
-          <div className="flex justify-between">
-            <span className="text-[#1C1941]/40 font-bold uppercase tracking-wider text-[10px]">Chat ID</span>
-            <span className="text-[#1C1941]/70 break-all ml-4 text-right">{receipt.chatID}</span>
+        <div className="mt-2 rounded-xl border-2 border-[#1C1941]/20 bg-[#FDF8F5] p-4 font-mono text-[11px] space-y-2 shadow-[2px_2px_0_#1C1941]/10">
+          {/* Data rows */}
+          <div className="flex justify-between gap-4">
+            <span className="text-[#1C1941]/40 font-bold uppercase tracking-wider text-[10px] shrink-0">
+              Chat ID
+            </span>
+            <span className="text-[#1C1941]/70 break-all text-right">{receipt.chatID}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-[#1C1941]/40 font-bold uppercase tracking-wider text-[10px]">Provider</span>
-            <span className="text-[#1C1941]/70 ml-4">{receipt.providerAddress.slice(0, 10)}…</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-[#1C1941]/40 font-bold uppercase tracking-wider text-[10px]">Checked at</span>
-            <span className="text-[#1C1941]/70">{time}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-[#1C1941]/40 font-bold uppercase tracking-wider text-[10px]">TEE signature</span>
-            <span className={verified ? "text-[#8AF2CF] font-bold" : "text-[#EF4A6B] font-bold"}>
-              {verified ? "Valid ✓" : "Not returned by provider"}
+
+          <div className="flex justify-between gap-4">
+            <span className="text-[#1C1941]/40 font-bold uppercase tracking-wider text-[10px] shrink-0">
+              Provider
+            </span>
+            <span className="text-[#1C1941]/70">
+              {receipt.providerAddress.slice(0, 10)}…
             </span>
           </div>
-          {!verified && (
-            <p className="text-[#1C1941]/40 pt-2 leading-relaxed border-t-2 border-[#1C1941]/10 mt-1 text-[10px]">
-              This provider passed automated attestation checks but did not return a
-              per-response TEE signature (<code className="bg-[#1C1941]/5 px-1 rounded">ZG-Res-Key</code>) for this request.
-              Provider-level verification still applies.
+
+          <div className="flex justify-between gap-4">
+            <span className="text-[#1C1941]/40 font-bold uppercase tracking-wider text-[10px] shrink-0">
+              Checked at
+            </span>
+            <span className="text-[#1C1941]/70">{time}</span>
+          </div>
+
+          <div className="flex justify-between gap-4">
+            <span className="text-[#1C1941]/40 font-bold uppercase tracking-wider text-[10px] shrink-0">
+              TEE signature
+            </span>
+            <span
+              className={`font-bold ${
+                verified
+                  ? "text-[#1C1941]"
+                  : skipReason === "signature_fetch_failed"
+                  ? "text-[#EF4A6B]"
+                  : "text-[#EF4A6B]"
+              }`}
+            >
+              {verified
+                ? "Valid ✓"
+                : skipReason === "centralized_provider"
+                ? "N/A — centralized model"
+                : skipReason === "signature_fetch_failed"
+                ? "Fetch failed ✗"
+                : "Not returned ✗"}
+            </span>
+          </div>
+
+          <div className="flex justify-between gap-4">
+            <span className="text-[#1C1941]/40 font-bold uppercase tracking-wider text-[10px] shrink-0">
+              Skip reason
+            </span>
+            <span className="text-[#1C1941]/50 font-mono">
+              {skipReason ?? "none"}
+            </span>
+          </div>
+
+          {/* Explanation */}
+          {explanation && (
+            <p className="text-[#1C1941]/40 pt-2 leading-relaxed border-t-2 border-[#1C1941]/10 text-[10px]">
+              {explanation}
             </p>
+          )}
+
+          {/* Verified — show a positive confirmation instead */}
+          {verified && (
+            <div className="pt-2 border-t-2 border-[#1C1941]/10 flex items-start gap-2">
+              <span className="text-[#8AF2CF] text-base leading-none">✓</span>
+              <p className="text-[#1C1941]/50 text-[10px] leading-relaxed">
+                Response content matches the cryptographic signature produced inside
+                the TEE enclave. This proof is tied to the chatID above and cannot
+                be forged.
+              </p>
+            </div>
           )}
         </div>
       )}
     </div>
   );
+}
+
+function renderInline(text: string, isUser: boolean): React.ReactNode[] {
+  if (!text) return [];
+
+  // Match inline code, bold, italic
+  const regex = /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|_[^_]+_)/g;
+  const parts = text.split(regex);
+
+  return parts.map((part, index) => {
+    if (part.startsWith("`") && part.endsWith("`")) {
+      return (
+        <code
+          key={index}
+          className={`px-1.5 py-0.5 rounded font-mono text-xs font-semibold border ${
+            isUser
+              ? "bg-[#1C1941]/30 text-white border-white/20"
+              : "bg-[#1C1941]/5 text-[#845EEB] border-[#1C1941]/10"
+          }`}
+        >
+          {part.slice(1, -1)}
+        </code>
+      );
+    }
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return (
+        <strong key={index} className={`font-bold ${isUser ? "text-white" : "text-[#1C1941]"}`}>
+          {part.slice(2, -2)}
+        </strong>
+      );
+    }
+    if ((part.startsWith("*") && part.endsWith("*")) || (part.startsWith("_") && part.endsWith("_"))) {
+      return (
+        <em key={index} className="italic">
+          {part.slice(1, -1)}
+        </em>
+      );
+    }
+    return part;
+  });
+}
+
+function CodeBlock({ code, lang }: { code: string; lang: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy text: ", err);
+    }
+  };
+
+  return (
+    <div className="my-3 overflow-hidden rounded-xl border-2 border-[#1C1941] bg-[#1C1941] text-white shadow-[3px_3px_0_#1C1941] font-mono text-xs w-full max-w-full">
+      <div className="bg-[#1C1941]/90 px-4 py-2 text-[10px] uppercase font-black tracking-wider text-[#8AF2CF] border-b-2 border-[#1C1941] flex justify-between items-center">
+        <span>{lang || "code"}</span>
+        <button
+          onClick={handleCopy}
+          className="hover:text-white px-2 py-0.5 rounded border border-[#8AF2CF]/30 bg-[#8AF2CF]/10 transition-all active:scale-95 cursor-pointer font-bold"
+        >
+          {copied ? "Copied! ✓" : "Copy"}
+        </button>
+      </div>
+      <pre className="p-4 overflow-x-auto whitespace-pre scrollbar-thin scrollbar-thumb-white/20">
+        <code>{code}</code>
+      </pre>
+    </div>
+  );
+}
+
+function FormattedMessage({ content, isUser }: { content: string; isUser: boolean }) {
+  const parts = content.split("```");
+  const elements: React.ReactNode[] = [];
+
+  for (let i = 0; i < parts.length; i++) {
+    if (i % 2 === 1) {
+      // Inside a code block
+      const part = parts[i];
+      const firstNewline = part.indexOf("\n");
+      let lang = "";
+      let code = part;
+      if (firstNewline !== -1) {
+        lang = part.slice(0, firstNewline).trim();
+        code = part.slice(firstNewline + 1);
+      }
+      if (code.endsWith("\n")) {
+        code = code.slice(0, -1);
+      }
+      elements.push(<CodeBlock key={`code-${i}`} code={code} lang={lang} />);
+    } else {
+      // Outside code blocks
+      const textPart = parts[i];
+      if (!textPart) continue;
+
+      const lines = textPart.split("\n");
+      let currentParagraph: string[] = [];
+      let currentList: string[] = [];
+
+      const flushParagraph = (key: string) => {
+        if (currentParagraph.length > 0) {
+          elements.push(
+            <p key={key} className="leading-relaxed whitespace-pre-wrap mb-2 last:mb-0">
+              {renderInline(currentParagraph.join("\n"), isUser)}
+            </p>
+          );
+          currentParagraph = [];
+        }
+      };
+
+      const flushList = (key: string) => {
+        if (currentList.length > 0) {
+          elements.push(
+            <ul key={key} className="list-disc pl-5 mb-2.5 last:mb-0 space-y-1">
+              {currentList.map((item, idx) => (
+                <li key={idx} className="leading-relaxed">
+                  {renderInline(item, isUser)}
+                </li>
+              ))}
+            </ul>
+          );
+          currentList = [];
+        }
+      };
+
+      for (let j = 0; j < lines.length; j++) {
+        const line = lines[j];
+        const trimmed = line.trim();
+
+        if (trimmed.startsWith("#")) {
+          flushParagraph(`p-${i}-${j}`);
+          flushList(`l-${i}-${j}`);
+
+          const headerMatch = trimmed.match(/^(#{1,6})\s+(.*)$/);
+          if (headerMatch) {
+            const level = headerMatch[1].length;
+            const headerText = headerMatch[2];
+            if (level === 1) {
+              elements.push(
+                <h1 key={`h-${i}-${j}`} className={`text-lg font-black font-display mt-3.5 mb-1.5 first:mt-1 ${isUser ? "text-white" : "text-[#1C1941]"}`}>
+                  {renderInline(headerText, isUser)}
+                </h1>
+              );
+            } else if (level === 2) {
+              elements.push(
+                <h2 key={`h-${i}-${j}`} className={`text-base font-black font-display mt-3 mb-1 first:mt-1 ${isUser ? "text-white" : "text-[#1C1941]"}`}>
+                  {renderInline(headerText, isUser)}
+                </h2>
+              );
+            } else {
+              elements.push(
+                <h3 key={`h-${i}-${j}`} className={`text-sm font-bold font-display mt-2.5 mb-1 first:mt-1 ${isUser ? "text-white" : "text-[#1C1941]"}`}>
+                  {renderInline(headerText, isUser)}
+                </h3>
+              );
+            }
+          } else {
+            currentParagraph.push(line);
+          }
+        } else if (trimmed.startsWith("- ") || trimmed.startsWith("* ") || (trimmed.match(/^\d+\.\s/) && !isNaN(parseInt(trimmed)))) {
+          flushParagraph(`p-${i}-${j}`);
+
+          if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+            currentList.push(trimmed.slice(2));
+          } else {
+            flushList(`l-${i}-${j}`);
+            const match = trimmed.match(/^(\d+)\.\s+(.*)$/);
+            if (match) {
+              elements.push(
+                <div key={`ol-${i}-${j}`} className="pl-5 mb-2 last:mb-0 flex gap-2 leading-relaxed">
+                  <span className={`font-mono text-xs font-bold min-w-[1rem] ${isUser ? "text-white/85" : "text-[#845EEB]"}`}>{match[1]}.</span>
+                  <div className="flex-1">{renderInline(match[2], isUser)}</div>
+                </div>
+              );
+            } else {
+              currentParagraph.push(line);
+            }
+          }
+        } else if (trimmed === "") {
+          flushParagraph(`p-${i}-${j}`);
+          flushList(`l-${i}-${j}`);
+        } else {
+          flushList(`l-${i}-${j}`);
+          currentParagraph.push(line);
+        }
+      }
+
+      flushParagraph(`p-${i}-end`);
+      flushList(`l-${i}-end`);
+    }
+  }
+
+  return <div className="space-y-1.5 w-full">{elements}</div>;
 }
 
 interface Message {
@@ -75,26 +374,22 @@ interface Message {
 // ── main component ───────────────────────────────────────────────
 
 export function ChatInterface({ providerAddress }: { providerAddress: string }) {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
-
-  // Load chat history from sessionStorage on mount or when provider changes
-  useEffect(() => {
+  const [messages, setMessages] = useState<Message[]>(() => {
     if (typeof window !== "undefined") {
       const saved = sessionStorage.getItem(`chat_history_${providerAddress.toLowerCase()}`);
       if (saved) {
         try {
-          setMessages(JSON.parse(saved));
+          return JSON.parse(saved);
         } catch (e) {
           console.error("Failed to parse chat history", e);
         }
-      } else {
-        setMessages([]);
       }
     }
-  }, [providerAddress]);
+    return [];
+  });
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   // Save chat history to sessionStorage whenever messages change
   useEffect(() => {
@@ -134,7 +429,13 @@ export function ChatInterface({ providerAddress }: { providerAddress: string }) 
           role: "assistant",
           content: data.content || "",
           model: data.model,
-          receipt: data.receipt,
+          receipt: data.receipt || {
+            chatID: "unavailable",
+            isVerified: false,
+            providerAddress,
+            verifiedAt: Date.now(),
+            skipReason: null,
+          },
           error: data.error,
         },
       ]);
@@ -201,7 +502,7 @@ export function ChatInterface({ providerAddress }: { providerAddress: string }) 
                 {msg.error ? (
                   <span className="font-mono text-xs font-bold">{msg.error}</span>
                 ) : (
-                  <span className="whitespace-pre-wrap">{msg.content}</span>
+                  <FormattedMessage content={msg.content} isUser={msg.role === "user"} />
                 )}
               </div>
 
@@ -216,7 +517,8 @@ export function ChatInterface({ providerAddress }: { providerAddress: string }) 
                   chatID: "unavailable",
                   isVerified: false,
                   providerAddress,
-                  verifiedAt: Date.now(),
+                  verifiedAt: 0,
+                  skipReason: null,
                 }} />
               )}
             </div>

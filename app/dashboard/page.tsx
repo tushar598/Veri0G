@@ -191,7 +191,7 @@ export default function DashboardPage() {
             {/* Tab content */}
             {activeTab === "verify" && <VerificationCard result={result} />}
             {activeTab === "chat" && isChatbot && (
-              <ChatInterface providerAddress={result.providerAddress} />
+              <ChatInterface key={result.providerAddress} providerAddress={result.providerAddress} />
             )}
           </>
         )}

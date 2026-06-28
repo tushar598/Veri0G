@@ -8,6 +8,7 @@ export interface VerificationReceipt {
   isVerified: boolean;
   providerAddress: string;
   verifiedAt: number; // Unix ms timestamp
+  skipReason?: "centralized_provider" | "signature_fetch_failed" | null;
 }
 
 export interface InferenceResult {
