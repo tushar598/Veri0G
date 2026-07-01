@@ -5,6 +5,85 @@ import type { InferenceResult, VerificationReceipt } from "@/app/types";
 
 // ── sub-components ──────────────────────────────────────────────
 
+// Maps the on-chain verifiability string to display config
+const VERIFIABILITY_CONFIG: Record<
+  "TeeML" | "TeeTLS" | "" | (string & {}),
+  { label: string; bg: string; text: string; dot: string; title: string }
+> = {
+  TeeML: {
+    label: "TeeML",
+    bg: "bg-[#845EEB]/15",
+    text: "text-[#845EEB]",
+    dot: "bg-[#845EEB]",
+    title: "Model runs directly inside a Trusted Execution Environment (TEE). Every response is cryptographically signed.",
+  },
+  TeeTLS: {
+    label: "TeeTLS",
+    bg: "bg-[#8AF2CF]/20",
+    text: "text-[#1C7A5A]",
+    dot: "bg-[#8AF2CF]",
+    title: "TLS channel terminates inside a TEE enclave. Transport-layer proof only — no per-response model signature.",
+  },
+  "": {
+    label: "Unknown",
+    bg: "bg-[#1C1941]/5",
+    text: "text-[#1C1941]/40",
+    dot: "bg-[#1C1941]/20",
+    title: "Verifiability type not reported by this provider.",
+  },
+};
+
+function VerifiabilityChip({
+  value,
+}: {
+  value?: "TeeML" | "TeeTLS" | "" | null;
+}) {
+  const key = value ?? "";
+  const cfg = VERIFIABILITY_CONFIG[key] ?? VERIFIABILITY_CONFIG[""];
+  return (
+    <span
+      title={cfg.title}
+      className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 font-mono text-[10px] font-bold border border-current/20 ${cfg.bg} ${cfg.text} cursor-help`}
+    >
+      <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${cfg.dot}`} />
+      {cfg.label}
+    </span>
+  );
+}
+
+function HeaderVerifiabilityBadge({
+  verifiability,
+}: {
+  verifiability?: "TeeML" | "TeeTLS" | "" | null;
+}) {
+  const key = verifiability ?? "";
+  const cfg = VERIFIABILITY_CONFIG[key] ?? VERIFIABILITY_CONFIG[""];
+
+  // Before any response arrives, show a neutral skeleton-style pill
+  if (verifiability === undefined) {
+    return (
+      <span className="shrink-0 rounded-xl border-2 border-[#1C1941]/20 bg-[#1C1941]/5 px-3 py-1.5 font-mono text-[10px] font-black uppercase tracking-widest text-[#1C1941]/30 animate-pulse">
+        · · ·
+      </span>
+    );
+  }
+
+  const bgMap: Record<string, string> = {
+    TeeML: "bg-[#845EEB]",
+    TeeTLS: "bg-[#1C7A5A]",
+    "": "bg-[#1C1941]/40",
+  };
+
+  return (
+    <span
+      title={cfg.title}
+      className={`shrink-0 rounded-xl border-2 border-[#1C1941] ${bgMap[key] ?? bgMap[""]} px-3 py-1.5 font-mono text-[10px] font-black uppercase tracking-widest text-white shadow-[2px_2px_0_#1C1941] cursor-help`}
+    >
+      {cfg.label}
+    </span>
+  );
+}
+
 function ReceiptBadge({ receipt }: { receipt: VerificationReceipt }) {
   const [open, setOpen] = useState(false);
 
@@ -142,6 +221,13 @@ function ReceiptBadge({ receipt }: { receipt: VerificationReceipt }) {
             <span className="text-[#1C1941]/50 font-mono">
               {skipReason ?? "none"}
             </span>
+          </div>
+
+          <div className="flex justify-between gap-4 items-center">
+            <span className="text-[#1C1941]/40 font-bold uppercase tracking-wider text-[10px] shrink-0">
+             VERIFIABILITY
+            </span>
+            <VerifiabilityChip value={receipt.verifiability} />
           </div>
 
           {/* Explanation */}
@@ -369,6 +455,7 @@ interface Message {
   model?: string;
   receipt?: VerificationReceipt | null;
   error?: string | null;
+  verifiability?: "TeeML" | "TeeTLS" | "";
 }
 
 // ── main component ───────────────────────────────────────────────
@@ -435,8 +522,10 @@ export function ChatInterface({ providerAddress }: { providerAddress: string }) 
             providerAddress,
             verifiedAt: Date.now(),
             skipReason: null,
+            verifiability: "",
           },
           error: data.error,
+          verifiability: data.receipt?.verifiability ?? "",
         },
       ]);
     } catch {
@@ -460,9 +549,9 @@ export function ChatInterface({ providerAddress }: { providerAddress: string }) 
             {providerAddress}
           </p>
         </div>
-        <span className="shrink-0 rounded-xl border-2 border-[#1C1941] bg-[#845EEB] px-3 py-1.5 font-mono text-[10px] font-black uppercase tracking-widest text-white shadow-[2px_2px_0_#1C1941]">
-          TeeML
-        </span>
+        <HeaderVerifiabilityBadge
+          verifiability={messages.find((m) => m.role === "assistant")?.verifiability}
+        />
       </div>
 
       {/* Messages */}
@@ -519,6 +608,7 @@ export function ChatInterface({ providerAddress }: { providerAddress: string }) 
                   providerAddress,
                   verifiedAt: 0,
                   skipReason: null,
+                  verifiability: "",
                 }} />
               )}
             </div>

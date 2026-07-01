@@ -9,6 +9,7 @@ export interface VerificationReceipt {
   providerAddress: string;
   verifiedAt: number; // Unix ms timestamp
   skipReason?: "centralized_provider" | "signature_fetch_failed" | null;
+  verifiability?: "TeeML" | "TeeTLS" | "";
 }
 
 export interface InferenceResult {

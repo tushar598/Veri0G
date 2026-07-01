@@ -5,11 +5,14 @@ import { useProviders } from "@/app/hooks/useProviders";
 
 export function ProviderSearch({
   onSelect,
+  defaultValue,
 }: {
   onSelect: (providerAddress: string) => void;
+  /** Pre-fill the search input (used for deep-link auto-verify). */
+  defaultValue?: string;
 }) {
   const { providers, loading } = useProviders();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(defaultValue ?? "");
   const [open, setOpen] = useState(false);
 
   const matches = useMemo(() => {
