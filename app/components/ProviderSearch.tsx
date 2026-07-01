@@ -17,15 +17,13 @@ export function ProviderSearch({
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return providers.slice(0, 8);
-    return providers
-      .filter(
-        (p) =>
-          p.provider.toLowerCase().includes(q) ||
-          p.model.toLowerCase().includes(q) ||
-          p.serviceType.toLowerCase().includes(q)
-      )
-      .slice(0, 8);
+    if (!q) return providers;
+    return providers.filter(
+      (p) =>
+        p.provider.toLowerCase().includes(q) ||
+        p.model.toLowerCase().includes(q) ||
+        p.serviceType.toLowerCase().includes(q)
+    );
   }, [providers, query]);
 
   function submit(address: string) {
@@ -83,7 +81,7 @@ export function ProviderSearch({
 
       {/* Dropdown */}
       {open && (loading || matches.length > 0) && (
-        <ul className="absolute z-10 mt-3 w-full overflow-hidden rounded-2xl border-4 border-[#1C1941] bg-white shadow-[8px_8px_0_#1C1941]">
+        <ul className="absolute z-10 mt-3 w-full max-h-80 overflow-y-auto rounded-2xl border-4 border-[#1C1941] bg-white shadow-[8px_8px_0_#1C1941] scrollbar-thin scrollbar-thumb-[#845EEB]/30 scrollbar-track-transparent">
           {loading ? (
             <li className="px-6 py-4 font-sans text-sm text-[#1C1941]/50 flex items-center gap-3">
               <div className="w-4 h-4 border-2 border-[#845EEB] border-t-transparent rounded-full animate-spin" />
