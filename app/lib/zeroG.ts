@@ -471,3 +471,108 @@ export async function runVerifiedInference(
     return fail(msg);
   }
 }
+
+
+// src/app/lib/zeroG.ts — append at the bottom
+
+export interface ResponseVerificationResult {
+  providerAddress: string;
+  chatID: string;
+  isVerified: boolean;
+  skipReason: "centralized_provider" | "signature_fetch_failed" | null;
+  verifiedAt: number;
+  providerType: string;    // "TeeML" | "TeeTLS" — playground ko badge dikhana hai
+  signerAddress: string;   // on-chain registered signer
+  error: string | null;
+}
+
+export async function verifyInferenceResponse(
+  providerAddress: string,
+  content: string,
+  chatID: string
+): Promise<ResponseVerificationResult> {
+  const fail = (
+    error: string,
+    extra: Partial<ResponseVerificationResult> = {}
+  ): ResponseVerificationResult => ({
+    providerAddress, chatID,
+    isVerified: false, skipReason: null,
+    verifiedAt: Date.now(),
+    providerType: "unknown", signerAddress: "",
+    error, ...extra,
+  });
+
+  if (!ethers.isAddress(providerAddress)) {
+    return fail("Invalid provider address format");
+  }
+
+  let broker: Broker;
+  try {
+    broker = await getZeroGBroker();
+  } catch (err) {
+    return fail(err instanceof Error ? err.message : "Could not reach 0G network");
+  }
+
+  try {
+    // Service metadata — provider type + signer address
+    const service = await getProviderService(providerAddress);
+    if (!service) {
+      return fail("Provider not found on 0G Compute Network");
+    }
+
+    // On-chain metadata — TeeML vs TeeTLS detect karo
+    const rawServices = await broker.inference.listService();
+    interface RawService { provider?: string; [key: number]: string | undefined; }
+    const rawService = (rawServices as unknown as RawService[]).find(
+      (s) => s.provider?.toLowerCase() === providerAddress.toLowerCase()
+    );
+    const extendedMetaJson = rawService?.[8] ?? "{}";
+    const { isCentralized, providerType } = parseProviderArchitecture(extendedMetaJson);
+
+    // On-chain registered signer address
+    const signerAddress: string = rawService?.[9] ?? "";
+
+    // One-time acknowledgment
+    await ensureProviderAcknowledged(broker, providerAddress);
+
+    if (isCentralized) {
+      return {
+        providerAddress, chatID,
+        isVerified: false,
+        skipReason: "centralized_provider",
+        verifiedAt: Date.now(),
+        providerType, signerAddress,
+        error: null,
+      };
+    }
+
+    // Actual TEE response verification
+    try {
+      const isVerified = await broker.inference.processResponse(
+        providerAddress,
+        content,
+        chatID
+      );
+      return {
+        providerAddress, chatID,
+        isVerified: !!isVerified,
+        skipReason: null,
+        verifiedAt: Date.now(),
+        providerType, signerAddress,
+        error: null,
+      };
+    } catch {
+      return {
+        providerAddress, chatID,
+        isVerified: false,
+        skipReason: "signature_fetch_failed",
+        verifiedAt: Date.now(),
+        providerType, signerAddress,
+        error: null,
+      };
+    }
+
+  } catch (err) {
+    return fail(err instanceof Error ? err.message : "Verification failed");
+  }
+}
