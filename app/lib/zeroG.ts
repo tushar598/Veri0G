@@ -87,6 +87,55 @@ export async function getZeroGBroker(): Promise<Broker> {
 }
 
 // ─────────────────────────────────────────────
+// Router API — model catalog (authoritative verifiability source)
+// ─────────────────────────────────────────────
+
+// The 0G router catalog at https://router-api.0g.ai/v1/models carries
+// accurate TeeML / TeeTLS values per model-id and is updated by 0G regularly.
+// We use it as the authoritative verifiability source and fall back to the
+// on-chain value only when the API is unreachable or the model isn't listed.
+
+const CATALOG_TTL_MS = 5 * 60_000; // 5-minute cache
+let catalogCache: {
+  data: Map<string, "TeeML" | "TeeTLS" | "">;
+  fetchedAt: number;
+} | null = null;
+
+async function fetchModelCatalog(): Promise<Map<string, "TeeML" | "TeeTLS" | "">> {
+  const now = Date.now();
+  if (catalogCache && now - catalogCache.fetchedAt < CATALOG_TTL_MS) {
+    return catalogCache.data;
+  }
+
+  try {
+    const res = await fetch("https://router-api.0g.ai/v1/models", {
+      headers: { Accept: "application/json" },
+      // 8-second timeout so a slow API never blocks provider listing
+      signal: AbortSignal.timeout(8_000),
+    });
+
+    if (!res.ok) throw new Error(`Router API returned ${res.status}`);
+
+    const json = await res.json() as { data?: Array<{ id: string; verifiability?: string }> };
+    const map = new Map<string, "TeeML" | "TeeTLS" | "">();
+
+    for (const entry of json.data ?? []) {
+      if (entry.id && entry.verifiability) {
+        const v = entry.verifiability as "TeeML" | "TeeTLS" | "";
+        map.set(entry.id.toLowerCase(), v);
+      }
+    }
+
+    catalogCache = { data: map, fetchedAt: now };
+    return map;
+  } catch (err) {
+    // API unreachable — return the stale cache if we have one, otherwise empty map
+    console.warn("[zeroG] Router catalog fetch failed, using stale/empty cache:", err);
+    return catalogCache?.data ?? new Map();
+  }
+}
+
+// ─────────────────────────────────────────────
 // Service discovery
 // ─────────────────────────────────────────────
 
@@ -101,7 +150,16 @@ interface RawService {
   verifiability?: string;
 }
 
-function normalizeService(raw: RawService): ServiceInfo {
+function normalizeService(
+  raw: RawService,
+  catalog: Map<string, "TeeML" | "TeeTLS" | "">
+): ServiceInfo {
+  // Resolve verifiability: catalog (live API) > on-chain field > empty
+  const modelKey = raw.model?.toLowerCase() ?? "";
+  const catalogVerifiability = catalog.get(modelKey);
+  const onChainVerifiability = (raw.verifiability as "TeeML" | "TeeTLS" | "") ?? "";
+  const verifiability = catalogVerifiability ?? onChainVerifiability;
+
   return {
     provider: raw.provider,
     serviceType: raw.serviceType,
@@ -110,7 +168,7 @@ function normalizeService(raw: RawService): ServiceInfo {
     inputPrice: raw.inputPrice !== undefined && raw.inputPrice !== null ? String(raw.inputPrice) : "0",
     outputPrice: raw.outputPrice !== undefined && raw.outputPrice !== null ? String(raw.outputPrice) : "0",
     updatedAt: raw.updatedAt !== undefined && raw.updatedAt !== null ? String(raw.updatedAt) : "0",
-    verifiability: (raw.verifiability as "TeeML" | "TeeTLS" | "") ?? "",
+    verifiability,
   };
 }
 
@@ -123,9 +181,15 @@ export async function listProviders(): Promise<ServiceInfo[]> {
     return providersCache.data;
   }
 
-  const broker = await getZeroGBroker();
-  const services = await broker.inference.listService();
-  const normalized = services.map(normalizeService);
+  // Fetch catalog and on-chain services in parallel for speed
+  const [catalog, services] = await Promise.all([
+    fetchModelCatalog(),
+    getZeroGBroker().then((broker) => broker.inference.listService()),
+  ]);
+
+  const normalized = services.map((raw) =>
+    normalizeService(raw as unknown as RawService, catalog)
+  );
 
   providersCache = { data: normalized, fetchedAt: now };
   return normalized;
