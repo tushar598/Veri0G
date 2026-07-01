@@ -401,8 +401,7 @@ export async function runVerifiedInference(
     const msg = err instanceof Error ? err.message : "Inference failed";
     if (msg.toLowerCase().includes("fund") || msg.toLowerCase().includes("balance")) {
       return fail(
-        "Insufficient ledger funds. Fund your wallet at faucet.0g.ai " +
-        "and ensure your account has a ledger with ≥3 OG."
+        "Insufficient ledger funds. Fund your wallet"
       );
     }
     return fail(msg);
